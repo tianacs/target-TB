@@ -1,69 +1,89 @@
-#!/usr/bin/env python
+#!/usr/bin/env pythonjson_dict
 
 """
 Trying to merge the JSON files.
-16/12/2022
+12/01/2022
 """
 
 import json
 import copy
 
-# load the skeleton
-with open('skeleton.json', 'r+') as f:
-    skeleton = json.load(f)
-    # file is closed again after "with" block
-    # TODO integrate with create_a_skeleton_JSON.py so file doesn't need to be written
+# TODO merge the levels other than "susceptibility"?
+# TODO double check the output so far
 
-# load the files to be merged
-with open('TB_48.1.mykrobe.json', 'r') as f:
-    JSON_One = json.load(f)
-
-with open('TB_48.2.mykrobe.json', 'r') as f:
-    JSON_Two = json.load(f)
-
-# Start by working with the ["susceptibility"] level:
-
-def filter_json (JSON, target):
+def filter_json (json_dict, target):
     """
     Remove any variant calls not in the specificied target region
     """
-    for drug, drug_prediction in JSON.items():
+    for drug, drug_prediction in json_dict.items():
         if "called_by" in drug_prediction:
             for variant in dict(drug_prediction["called_by"]):
                 if variant.split ("_")[0] != target:
                     del drug_prediction["called_by"][variant]
                 if not(drug_prediction["called_by"]):
                     drug_prediction["predict"] = "S"
-    return JSON
+    return json_dict
 
-# Get only the "appropriate" resistance calls
-# TODO rename these variables
-kopie = copy.deepcopy (JSON_One["TB_48"]["susceptibility"])
-filter_json (kopie, "gyrA")
+def merge_susceptibility (json_dict):
+    """
+    Merge the susceptibility calls of an individual mykrobe JSONs into the skeleton
+    """
+    for drug in skeleton['TB_48']['susceptibility'].keys ():
+        # If there is an drug variant entry in the skeleton,
+        # Check if the resistant call is the same.
+        # If not, compare acc. to priorities and overwrite if appropriate
+        if skeleton['TB_48']['susceptibility'][drug]:
+            if skeleton['TB_48']['susceptibility'][drug]['predict'] == json_dict[drug]["predict"]:
+                pass
+            else:
+                if json_dict[drug]["predict"] == "R":
+                    skeleton['TB_48']['susceptibility'][drug] = copy.deepcopy (json_dict[drug])
+                elif json_dict[drug]["predict"] == "r":
+                    skeleton['TB_48']['susceptibility'][drug] = copy.deepcopy (json_dict[drug])
+        else:
+            skeleton['TB_48']['susceptibility'][drug] = copy.deepcopy (json_dict[drug])
 
-kopie_two = copy.deepcopy (JSON_Two["TB_48"]["susceptibility"])
-filter_json (kopie_two, "rpoB")
+########################################################################
+# Make a skeleton
+########################################################################
 
-# For each drug listed under susceptibility
-for drug in skeleton['TB_48']['susceptibility'].keys ():
-    # Compare if the predicted status is the same in the two JSON files
-    if kopie[drug]["predict"] == kopie_two[drug]['predict']:
-        # If so copy the predicted status
-        skeleton['TB_48']['susceptibility'][drug]['predict'] = copy.deepcopy (kopie[drug]['predict'])
-        # ISSUE - what if both have a resistant call due to different genes?
+# Load the JSON file into a dictionary
+with open('TB_48.1.mykrobe.json', 'r') as f:
+    data = json.load(f)
 
-    else:
-        # If predict status is not the same, compare the statuses and copy according to the "R">"r">"S" priorities
-        # ISSUE - when comparing the next two files - will those then overwrite the skeleton file?
-        if kopie[drug]["predict"] == "R":
-            skeleton['TB_48']['susceptibility'][drug] = copy.deepcopy (kopie[drug])
-        elif kopie_two[drug]['predict'] == "R":
-            skeleton['TB_48']['susceptibility'][drug] = copy.deepcopy (kopie_two[drug])
-        elif kopie[drug]["predict"] == "r":
-            skeleton['TB_48']['susceptibility'][drug] = copy.deepcopy (kopie[drug])
-        elif kopie_two[drug]['predict'] == "r":
-            skeleton['TB_48']['susceptibility'][drug] = copy.deepcopy (kopie_two[drug])
+# Initialize an empty dictionary to hold the skeleton
+skeleton = {}
 
-print (skeleton)
-with open('test_out.json', 'w') as json_file:
+# Set the depth of the skeleton you want to copy
+max_depth = 2
+
+# Traverse the dictionary and copy the keys up to the specified depth
+def copy_skeleton(data, skeleton, depth=0):
+    if depth > max_depth:
+        return
+    for key, value in data.items():
+        if isinstance(value, dict):
+            skeleton[key] = {}
+            copy_skeleton(value, skeleton[key], depth+1)
+        else:
+            skeleton[key] = None
+
+copy_skeleton(data, skeleton)
+
+########################################################################
+
+targets = [ "gyrA", "rpoB", "rv0678", "rpsL", "rplC", "rrs", "rrl",
+            "fabG1", "inhA", "tlyA", "katG", "pncA", "eis", "embB", "ethA", "gidB"]
+
+for count, drug_target in enumerate (targets):
+    with open(f'TB_48.{count+1}.mykrobe.json', 'r') as f:
+        target_json = json.load(f)
+
+    filtered_JSON = copy.deepcopy (target_json["TB_48"]["susceptibility"])
+    filter_json (filtered_JSON, drug_target)
+
+    if filtered_JSON:
+        merge_susceptibility (filtered_JSON)
+
+with open(f'merged.output.json', 'w') as json_file:
     json.dump(skeleton, json_file, indent=4)
