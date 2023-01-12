@@ -1,0 +1,7 @@
+*.json
+TB_amplicons.bed
+create_a_skeleton_JSON.py
+mykrobe/
+mykrobe_skeleton/
+targets/
+targets_copy.sh
