@@ -19,6 +19,6 @@ do
     docker run --rm -v $READS_DIR:/reads -v $(pwd):/workdir mykrobe_amplicon bash -c "mykrobe predict --sample $SAMPLE -t $THREADS --skeleton_dir /workdir/mykrobe_skeleton --ont --format json --min_proportion_expected_depth $DEPTH --species tb -m 2048MB -T /workdir/targets/target_$i.bed -o /workdir/$OUT_DIR/$SAMPLE.$i.mykrobe.json -i /reads/*.fastq.gz"
 done < TB_amplicons.bed
 
-python merging_v2.py $SAMPLE $OUT_DIR
+python merge.py $SAMPLE $OUT_DIR
 mv $SAMPLE.merged.output.json $OUT_DIR
-#rm "TB_48".*."mykrobe.json"
+#rm $SAMPLE.*.mykrobe.json
